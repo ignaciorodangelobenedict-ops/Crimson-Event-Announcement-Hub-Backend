@@ -1,0 +1,9 @@
+-- Migration: make optional user profile fields nullable and set default values if needed
+ALTER TABLE `user`
+  MODIFY COLUMN `student_id` VARCHAR(255) NULL DEFAULT NULL,
+  MODIFY COLUMN `birthday` VARCHAR(255) NULL DEFAULT NULL,
+  MODIFY COLUMN `gender` VARCHAR(50) NULL DEFAULT NULL,
+  MODIFY COLUMN `year_level` VARCHAR(50) NULL DEFAULT NULL,
+  MODIFY COLUMN `course` VARCHAR(255) NULL DEFAULT NULL,
+  MODIFY COLUMN `profile_image` VARCHAR(255) NULL DEFAULT NULL,
+  MODIFY COLUMN `picture` VARCHAR(255) NULL DEFAULT NULL;
