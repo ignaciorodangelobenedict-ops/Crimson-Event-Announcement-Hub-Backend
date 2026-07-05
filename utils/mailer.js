@@ -11,6 +11,14 @@ const transporter = nodemailer.createTransport({
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASSWORD,
   },
+  tls: {
+    rejectUnauthorized: process.env.SMTP_REJECT_UNAUTHORIZED !== "false",
+  },
+  connectionTimeout: Number(process.env.SMTP_CONNECTION_TIMEOUT) || 20000,
+  greetingTimeout: Number(process.env.SMTP_GREETING_TIMEOUT) || 20000,
+  socketTimeout: Number(process.env.SMTP_SOCKET_TIMEOUT) || 20000,
+  logger: process.env.SMTP_DEBUG === "true",
+  debug: process.env.SMTP_DEBUG === "true",
 });
 
 export async function sendEmail(to, subject, message) {
