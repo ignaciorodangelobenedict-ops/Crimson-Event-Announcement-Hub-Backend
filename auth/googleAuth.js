@@ -81,8 +81,8 @@ export const googleSignup = async (req, res) => {
 
       const [result] = await db.query(
         `INSERT INTO user 
-          (google_id, role_id, firstname, lastname, email, profile_image, status) 
-        VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          (google_id, role_id, firstname, lastname, email, profile_image, student_id, status) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           google_id,
           1, // default role_id (e.g., 3 = student)
@@ -90,6 +90,7 @@ export const googleSignup = async (req, res) => {
           lastname,
           email,
           profile_image,
+          "",
           "active"
         ]
       );
