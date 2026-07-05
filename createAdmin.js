@@ -36,14 +36,19 @@ async function createTestAdmin() {
     // Insert admin into database
     await db.query(
       `INSERT INTO user 
-      (firstname, lastname, email, phone, department, student_id, password, role_id, status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (firstname, lastname, email, phone, department, student_id, birthday, gender, year_level, course, profile_image, password, role_id, status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         testAdmin.firstname,
         testAdmin.lastname,
         testAdmin.email,
         testAdmin.phone,
         testAdmin.department,
+        "",
+        "",
+        "",
+        "",
+        "",
         "",
         hashedPassword,
         testAdmin.role_id,

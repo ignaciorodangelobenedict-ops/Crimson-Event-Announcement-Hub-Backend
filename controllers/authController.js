@@ -43,7 +43,12 @@ export const signup = async (req, res) => {
       department,
       password,
       role_id,
-      student_id
+      student_id,
+      birthday,
+      gender,
+      year_level,
+      course,
+      profile_image
     } = req.body;
 
     // ✅ Required fields check
@@ -69,8 +74,8 @@ export const signup = async (req, res) => {
     // ✅ Insert user into DB
     await db.query(
       `INSERT INTO user 
-      (firstname, lastname, email, phone, department, student_id, password, role_id, status, applying_for)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      (firstname, lastname, email, phone, department, student_id, birthday, gender, year_level, course, profile_image, password, role_id, status, applying_for)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         firstname,
         lastname,
@@ -78,6 +83,11 @@ export const signup = async (req, res) => {
         phone,
         department,
         student_id || "",
+        birthday || "",
+        gender || "",
+        year_level || "",
+        course || "",
+        profile_image || "",
         hashedPassword,
         actualRole,
         status,
