@@ -51,8 +51,8 @@ export const archiveController = async (req, res) => {
           FROM announcement WHERE status = 'archived'
         ) AS combined
         ORDER BY sort_date DESC
-        LIMIT ? OFFSET ?
-      `, [pageSize, offset]);
+        LIMIT ${pageSize} OFFSET ${offset}
+      `);
 
       const [[{ total_count: event_count }]] = await db.execute(`
         SELECT COUNT(*) AS total_count FROM event WHERE status = 'archived'
@@ -184,8 +184,8 @@ export const archiveControllerByUser = async (req, res) => {
           FROM announcement WHERE status = 'archived' AND user_id = ?
         ) AS combined
         ORDER BY sort_date DESC
-        LIMIT ? OFFSET ?
-      `, [user_id, user_id, pageSize, offset]);
+        LIMIT ${pageSize} OFFSET ${offset}
+      `, [user_id, user_id]);
 
       const [[{ total_count: event_count }]] = await db.execute(`
         SELECT COUNT(*) AS total_count FROM event WHERE status = 'archived' AND user_id = ?
