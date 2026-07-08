@@ -4,40 +4,79 @@ import db from "../database/database.js";
 
 export const archiveController = async (req, res) => {
   try {
-    // 1️⃣ Update statuses first
     await updateArchivedStatus();
 
-    // 2️⃣ Fetch archived events
-    const [events] = await db.execute(`
-      SELECT 
-        event_id AS id,
-        title,
-        'Event' AS type,
-        DATE_FORMAT(event_date, '%b %d, %Y') AS date
-      FROM event
-      WHERE status = 'archived'
-      ORDER BY event_date DESC
-    `);
+    const type = req.query.type === 'Event' || req.query.type === 'Announcement' ? req.query.type : 'all';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.max(1, parseInt(req.query.pageSize, 10) || 10);
+    const offset = (page - 1) * pageSize;
 
-    // 3️⃣ Fetch archived announcements
-    const [announcements] = await db.execute(`
-      SELECT 
-        announcement_id AS id,
-        title,
-        'Announcement' AS type,
-        DATE_FORMAT(created_at, '%b %d, %Y') AS date
-      FROM announcement
-      WHERE status = 'archived'
-      ORDER BY created_at DESC
-    `);
+    let items = [];
+    let totalItems = 0;
 
-    // 4️⃣ Merge both arrays
-    const merged = [...events, ...announcements];
+    if (type === 'Event' || type === 'Announcement') {
+      const table = type === 'Event' ? 'event' : 'announcement';
+      const dateField = type === 'Event' ? 'event_date' : 'created_at';
+      const idField = type === 'Event' ? 'event_id' : 'announcement_id';
 
-    // 5️⃣ Return combined archived items
+      const [rows] = await db.execute(`
+        SELECT
+          ${idField} AS id,
+          title,
+          '${type}' AS type,
+          DATE_FORMAT(${dateField}, '%b %d, %Y') AS date
+        FROM ${table}
+        WHERE status = 'archived'
+        ORDER BY ${dateField} DESC
+        LIMIT ? OFFSET ?
+      `, [pageSize, offset]);
+
+      const [[{ total_count }]] = await db.execute(`
+        SELECT COUNT(*) AS total_count FROM ${table} WHERE status = 'archived'
+      `);
+
+      items = rows;
+      totalItems = total_count;
+    } else {
+      const [rows] = await db.execute(`
+        SELECT id, title, type, date FROM (
+          SELECT event_id AS id, title, 'Event' AS type,
+            DATE_FORMAT(event_date, '%b %d, %Y') AS date,
+            event_date AS sort_date
+          FROM event WHERE status = 'archived'
+          UNION ALL
+          SELECT announcement_id AS id, title, 'Announcement' AS type,
+            DATE_FORMAT(created_at, '%b %d, %Y') AS date,
+            created_at AS sort_date
+          FROM announcement WHERE status = 'archived'
+        ) AS combined
+        ORDER BY sort_date DESC
+        LIMIT ? OFFSET ?
+      `, [pageSize, offset]);
+
+      const [[{ total_count: event_count }]] = await db.execute(`
+        SELECT COUNT(*) AS total_count FROM event WHERE status = 'archived'
+      `);
+      const [[{ total_count: announcement_count }]] = await db.execute(`
+        SELECT COUNT(*) AS total_count FROM announcement WHERE status = 'archived'
+      `);
+
+      items = rows;
+      totalItems = event_count + announcement_count;
+    }
+
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
     res.json({
       success: true,
-      items: merged,
+      items,
+      pagination: {
+        page,
+        pageSize,
+        totalItems,
+        totalPages,
+        type,
+      },
     });
   } catch (err) {
     console.error(err);
@@ -93,45 +132,84 @@ export const deleteArchivedItem = async (req, res) => {
 
 export const archiveControllerByUser = async (req, res) => {
   try {
-    const user_id = req.user?.id; // get logged-in user's ID
+    const user_id = req.user?.id;
     if (!user_id) {
       return res.status(401).json({ success: false, message: "Unauthorized" });
     }
 
-    // 1️⃣ Update statuses first
     await updateArchivedStatus();
 
-    // 2️⃣ Fetch archived events created by this user
-    const [events] = await db.execute(`
-      SELECT 
-        event_id AS id,
-        title,
-        'Event' AS type,
-        DATE_FORMAT(event_date, '%b %d, %Y') AS date
-      FROM event
-      WHERE status = 'archived' AND user_id = ?
-      ORDER BY event_date DESC
-    `, [user_id]);
+    const type = req.query.type === 'Event' || req.query.type === 'Announcement' ? req.query.type : 'all';
+    const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+    const pageSize = Math.max(1, parseInt(req.query.pageSize, 10) || 10);
+    const offset = (page - 1) * pageSize;
 
-    // 3️⃣ Fetch archived announcements created by this user
-    const [announcements] = await db.execute(`
-      SELECT 
-        announcement_id AS id,
-        title,
-        'Announcement' AS type,
-        DATE_FORMAT(created_at, '%b %d, %Y') AS date
-      FROM announcement
-      WHERE status = 'archived' AND user_id = ?
-      ORDER BY created_at DESC
-    `, [user_id]);
+    let items = [];
+    let totalItems = 0;
 
-    // 4️⃣ Merge both arrays
-    const merged = [...events, ...announcements];
+    if (type === 'Event' || type === 'Announcement') {
+      const table = type === 'Event' ? 'event' : 'announcement';
+      const dateField = type === 'Event' ? 'event_date' : 'created_at';
+      const idField = type === 'Event' ? 'event_id' : 'announcement_id';
 
-    // 5️⃣ Return combined archived items
+      const [rows] = await db.execute(`
+        SELECT
+          ${idField} AS id,
+          title,
+          '${type}' AS type,
+          DATE_FORMAT(${dateField}, '%b %d, %Y') AS date
+        FROM ${table}
+        WHERE status = 'archived' AND user_id = ?
+        ORDER BY ${dateField} DESC
+        LIMIT ? OFFSET ?
+      `, [user_id, pageSize, offset]);
+
+      const [[{ total_count }]] = await db.execute(`
+        SELECT COUNT(*) AS total_count FROM ${table} WHERE status = 'archived' AND user_id = ?
+      `, [user_id]);
+
+      items = rows;
+      totalItems = total_count;
+    } else {
+      const [rows] = await db.execute(`
+        SELECT id, title, type, date FROM (
+          SELECT event_id AS id, title, 'Event' AS type,
+            DATE_FORMAT(event_date, '%b %d, %Y') AS date,
+            event_date AS sort_date
+          FROM event WHERE status = 'archived' AND user_id = ?
+          UNION ALL
+          SELECT announcement_id AS id, title, 'Announcement' AS type,
+            DATE_FORMAT(created_at, '%b %d, %Y') AS date,
+            created_at AS sort_date
+          FROM announcement WHERE status = 'archived' AND user_id = ?
+        ) AS combined
+        ORDER BY sort_date DESC
+        LIMIT ? OFFSET ?
+      `, [user_id, user_id, pageSize, offset]);
+
+      const [[{ total_count: event_count }]] = await db.execute(`
+        SELECT COUNT(*) AS total_count FROM event WHERE status = 'archived' AND user_id = ?
+      `, [user_id]);
+      const [[{ total_count: announcement_count }]] = await db.execute(`
+        SELECT COUNT(*) AS total_count FROM announcement WHERE status = 'archived' AND user_id = ?
+      `, [user_id]);
+
+      items = rows;
+      totalItems = event_count + announcement_count;
+    }
+
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
     res.json({
       success: true,
-      items: merged,
+      items,
+      pagination: {
+        page,
+        pageSize,
+        totalItems,
+        totalPages,
+        type,
+      },
     });
   } catch (err) {
     console.error(err);
