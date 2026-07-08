@@ -110,6 +110,38 @@ export const deleteNotification = async (req, res) => {
   }
 };
 
+export const markNotificationRead = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user_id = req.user?.id;
+
+    const sql = `UPDATE notification SET status = 'read' WHERE notification_id = ? AND user_id = ?`;
+    const [result] = await db.query(sql, [id, user_id]);
+
+    if (result.affectedRows === 0)
+      return res.status(404).json({ message: "Notification not found or not owned by user" });
+
+    return res.status(200).json({ message: "Notification marked as read" });
+  } catch (err) {
+    console.error("Error marking notification as read:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+export const markAllNotificationsRead = async (req, res) => {
+  try {
+    const user_id = req.user?.id;
+
+    const sql = `UPDATE notification SET status = 'read' WHERE user_id = ?`;
+    await db.query(sql, [user_id]);
+
+    return res.status(200).json({ message: "All notifications marked as read" });
+  } catch (err) {
+    console.error("Error marking all notifications as read:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
 // Create notifications for students when a new approved item is added
 export const createNotificationForStudents = async (type, itemId, io = null) => {
   try {

@@ -74,3 +74,64 @@ export const addCategory = async (req, res) => {
     res.status(500).json({ message: "Failed to add category" });
   }
 };
+
+export const updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_name, description } = req.body;
+
+    if (!category_name) {
+      return res.status(400).json({ message: "Category name is required" });
+    }
+
+    const [existing] = await db.query(
+      "SELECT * FROM category WHERE category_id = ?",
+      [id]
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    const [duplicate] = await db.query(
+      "SELECT * FROM category WHERE category_name = ? AND category_id != ?",
+      [category_name, id]
+    );
+
+    if (duplicate.length > 0) {
+      return res.status(400).json({ message: "Another category with the same name already exists" });
+    }
+
+    await db.query(
+      "UPDATE category SET category_name = ?, description = ? WHERE category_id = ?",
+      [category_name, description || null, id]
+    );
+
+    res.status(200).json({ message: "Category updated successfully" });
+  } catch (err) {
+    console.error("Error updating category:", err);
+    res.status(500).json({ message: "Failed to update category" });
+  }
+};
+
+export const deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const [existing] = await db.query(
+      "SELECT * FROM category WHERE category_id = ?",
+      [id]
+    );
+
+    if (existing.length === 0) {
+      return res.status(404).json({ message: "Category not found" });
+    }
+
+    await db.query("DELETE FROM category WHERE category_id = ?", [id]);
+
+    res.status(200).json({ message: "Category deleted successfully" });
+  } catch (err) {
+    console.error("Error deleting category:", err);
+    res.status(500).json({ message: "Failed to delete category" });
+  }
+};
