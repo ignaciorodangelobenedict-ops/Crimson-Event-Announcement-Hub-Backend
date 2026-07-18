@@ -86,7 +86,7 @@ const createMfaCode = (email) => {
   return code;
 };
 
-const verifyMfaCode = (email, code) => {
+const checkMfaCode = (email, code) => {
   const normalizedEmail = normalizeEmail(email);
   const entry = mfaVerificationStore.get(normalizedEmail);
 
@@ -192,7 +192,7 @@ export const verifyMfaCode = async (req, res) => {
       return res.status(400).json({ msg: "Email and verification code are required" });
     }
 
-    const valid = verifyMfaCode(email, code);
+    const valid = checkMfaCode(email, code);
     return res.json({ valid });
   } catch (err) {
     console.error("Verify MFA code error:", err);
