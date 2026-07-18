@@ -28,6 +28,98 @@ const resetPasswordValidation = [
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
 ];
 
+const sendEmailVerificationValidation = [
+  body('email').isEmail().normalizeEmail().withMessage('Invalid email'),
+];
+
+const emailVerificationStore = new Map();
+
+const normalizeEmail = (email = "") => email.trim().toLowerCase();
+
+const cleanupExpiredEmailCodes = () => {
+  const now = Date.now();
+  for (const [emailKey, value] of emailVerificationStore.entries()) {
+    if (value.expiresAt <= now) {
+      emailVerificationStore.delete(emailKey);
+    }
+  }
+};
+
+const createEmailVerificationCode = (email) => {
+  cleanupExpiredEmailCodes();
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  emailVerificationStore.set(normalizeEmail(email), {
+    code,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+  return code;
+};
+
+const verifyEmailVerificationCode = (email, code) => {
+  cleanupExpiredEmailCodes();
+  const normalizedEmail = normalizeEmail(email);
+  const entry = emailVerificationStore.get(normalizedEmail);
+
+  if (!entry) return false;
+
+  if (entry.expiresAt <= Date.now()) {
+    emailVerificationStore.delete(normalizedEmail);
+    return false;
+  }
+
+  const matches = entry.code === String(code).trim();
+  if (matches) {
+    emailVerificationStore.delete(normalizedEmail);
+  }
+
+  return matches;
+};
+
+export const sendEmailVerificationCode = async (req, res) => {
+  const errors = validationResult(req);
+  if (!errors.isEmpty()) {
+    return res.status(400).json({ errors: errors.array() });
+  }
+
+  try {
+    const { email, firstname } = req.body;
+    if (!email) {
+      return res.status(400).json({ msg: "Email is required" });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const [existing] = await db.query("SELECT user_id FROM user WHERE email = ?", [normalizedEmail]);
+    if (existing.length > 0) {
+      return res.status(400).json({ msg: "Email already in use" });
+    }
+
+    const code = createEmailVerificationCode(normalizedEmail);
+    const emailResult = await sendEmail(
+      normalizedEmail,
+      "Verify your email",
+      `<div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #eee; border-radius: 12px;">
+        <h2 style="color: #C8102E; margin-bottom: 8px;">Verify your email</h2>
+        <p style="font-size: 16px; color: #333;">Hi ${firstname || "there"},</p>
+        <p style="font-size: 16px; color: #333;">Use the 6-digit code below to complete your sign-up:</p>
+        <div style="margin: 20px 0; padding: 16px 20px; background: #fdf2f4; border: 1px solid #f5c2c7; border-radius: 10px; text-align: center; font-size: 28px; letter-spacing: 6px; font-weight: 700; color: #C8102E;">${code}</div>
+        <p style="font-size: 14px; color: #666;">This code expires in 10 minutes. If you didn’t request it, you can ignore this email.</p>
+      </div>`
+    );
+
+    if (!emailResult.success) {
+      return res.status(500).json({ msg: "Failed to send verification code email" });
+    }
+
+    return res.json({
+      msg: "A 6-digit verification code has been sent to your email.",
+      expiresInMinutes: 10,
+    });
+  } catch (err) {
+    console.error("Send verification code error:", err);
+    return res.status(500).json({ msg: "Server error" });
+  }
+};
+
 export const signup = async (req, res) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
@@ -49,20 +141,31 @@ export const signup = async (req, res) => {
       year_level,
       course,
       profile_image,
-      picture
+      picture,
+      verification_code,
     } = req.body;
 
     // ✅ Required fields check
     if (!firstname || !lastname || !email || !password)
       return res.status(400).json({ msg: "All fields required" });
 
+    const normalizedEmail = normalizeEmail(email);
+
     // ✅ Check if email exists
     const [existing] = await db.query(
       "SELECT * FROM user WHERE email = ?",
-      [email]
+      [normalizedEmail]
     );
     if (existing.length > 0)
       return res.status(400).json({ msg: "Email already in use" });
+
+    if (!verification_code) {
+      return res.status(400).json({ msg: "Email verification code is required" });
+    }
+
+    if (!verifyEmailVerificationCode(normalizedEmail, verification_code)) {
+      return res.status(400).json({ msg: "Invalid or expired verification code" });
+    }
 
     // ✅ Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -80,7 +183,7 @@ export const signup = async (req, res) => {
       [
         firstname,
         lastname,
-        email,
+        normalizedEmail,
         phone,
         department,
         student_id || null,
