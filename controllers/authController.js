@@ -33,6 +33,7 @@ const sendEmailVerificationValidation = [
 ];
 
 const emailVerificationStore = new Map();
+const mfaVerificationStore = new Map();
 
 const normalizeEmail = (email = "") => email.trim().toLowerCase();
 
@@ -70,6 +71,35 @@ const verifyEmailVerificationCode = (email, code) => {
   const matches = entry.code === String(code).trim();
   if (matches) {
     emailVerificationStore.delete(normalizedEmail);
+  }
+
+  return matches;
+};
+
+const createMfaCode = (email) => {
+  const normalizedEmail = normalizeEmail(email);
+  const code = String(Math.floor(100000 + Math.random() * 900000));
+  mfaVerificationStore.set(normalizedEmail, {
+    code,
+    expiresAt: Date.now() + 10 * 60 * 1000,
+  });
+  return code;
+};
+
+const verifyMfaCode = (email, code) => {
+  const normalizedEmail = normalizeEmail(email);
+  const entry = mfaVerificationStore.get(normalizedEmail);
+
+  if (!entry) return false;
+
+  if (entry.expiresAt <= Date.now()) {
+    mfaVerificationStore.delete(normalizedEmail);
+    return false;
+  }
+
+  const matches = entry.code === String(code).trim();
+  if (matches) {
+    mfaVerificationStore.delete(normalizedEmail);
   }
 
   return matches;
@@ -116,6 +146,56 @@ export const sendEmailVerificationCode = async (req, res) => {
     });
   } catch (err) {
     console.error("Send verification code error:", err);
+    return res.status(500).json({ msg: "Server error" });
+  }
+};
+
+export const sendMfaVerificationCode = async (req, res) => {
+  try {
+    const { email, firstname } = req.body;
+    if (!email) {
+      return res.status(400).json({ msg: "Email is required" });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const code = createMfaCode(normalizedEmail);
+    const emailResult = await sendEmail(
+      normalizedEmail,
+      "Your MFA verification code",
+      `<div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto; padding: 24px; border: 1px solid #eee; border-radius: 12px;">
+        <h2 style="color: #C8102E; margin-bottom: 8px;">Sign-in verification</h2>
+        <p style="font-size: 16px; color: #333;">Hi ${firstname || "there"},</p>
+        <p style="font-size: 16px; color: #333;">Use the 6-digit code below to complete your sign-in:</p>
+        <div style="margin: 20px 0; padding: 16px 20px; background: #fdf2f4; border: 1px solid #f5c2c7; border-radius: 10px; text-align: center; font-size: 28px; letter-spacing: 6px; font-weight: 700; color: #C8102E;">${code}</div>
+        <p style="font-size: 14px; color: #666;">This code expires in 10 minutes. If you didn’t request it, you can ignore this email.</p>
+      </div>`
+    );
+
+    if (!emailResult.success) {
+      return res.status(500).json({ msg: "Failed to send MFA verification code email" });
+    }
+
+    return res.json({
+      msg: "A 6-digit MFA verification code has been sent to your email.",
+      expiresInMinutes: 10,
+    });
+  } catch (err) {
+    console.error("Send MFA verification code error:", err);
+    return res.status(500).json({ msg: "Server error" });
+  }
+};
+
+export const verifyMfaCode = async (req, res) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ msg: "Email and verification code are required" });
+    }
+
+    const valid = verifyMfaCode(email, code);
+    return res.json({ valid });
+  } catch (err) {
+    console.error("Verify MFA code error:", err);
     return res.status(500).json({ msg: "Server error" });
   }
 };

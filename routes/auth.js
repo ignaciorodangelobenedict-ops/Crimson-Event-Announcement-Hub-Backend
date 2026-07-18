@@ -1,5 +1,5 @@
 import express from "express";
-import { signup, login, forgotPassword, resetPassword, sendEmailVerificationCode } from "../controllers/authController.js";
+import { signup, login, forgotPassword, resetPassword, sendEmailVerificationCode, sendMfaVerificationCode, verifyMfaCode } from "../controllers/authController.js";
 import { testEmailService } from "../utils/mailer.js";
 
 const router = express.Router();
@@ -7,6 +7,8 @@ const router = express.Router();
 router.post("/signup", signup);
 router.post("/login", login);
 router.post("/send-verification-code", sendEmailVerificationCode);
+router.post("/send-mfa-code", sendMfaVerificationCode);
+router.post("/verify-mfa-code", verifyMfaCode);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 
