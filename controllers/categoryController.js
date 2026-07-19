@@ -64,6 +64,7 @@ export const addCategory = async (req, res) => {
     );
 
     res.status(201).json({
+      success: true,
       message: "Category added successfully",
       category_id: result[0].insertId,
       category_name,
@@ -107,7 +108,7 @@ export const updateCategory = async (req, res) => {
       [category_name, description || null, id]
     );
 
-    res.status(200).json({ message: "Category updated successfully" });
+    res.status(200).json({ success: true, message: "Category updated successfully" });
   } catch (err) {
     console.error("Error updating category:", err);
     res.status(500).json({ message: "Failed to update category" });
@@ -129,7 +130,7 @@ export const deleteCategory = async (req, res) => {
 
     await db.query("DELETE FROM category WHERE category_id = ?", [id]);
 
-    res.status(200).json({ message: "Category deleted successfully" });
+    res.status(200).json({ success: true, message: "Category deleted successfully" });
   } catch (err) {
     console.error("Error deleting category:", err);
     res.status(500).json({ message: "Failed to delete category" });
