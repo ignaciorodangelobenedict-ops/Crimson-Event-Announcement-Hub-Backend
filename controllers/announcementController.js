@@ -3,6 +3,35 @@ import path from "path";
 import fs from "fs";
 import { createNotificationForStudents } from "./notificationController.js";
 
+const ensureAnnouncementCategoryIdColumn = async () => {
+    const [rows] = await db.query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'announcement'
+          AND COLUMN_NAME = 'category_id'
+    `);
+
+    if (rows.length > 0) {
+        return true;
+    }
+
+    await db.query(`ALTER TABLE announcement ADD COLUMN category_id INT NULL`);
+    return true;
+};
+
+const hasAnnouncementCategoryIdColumn = async () => {
+    const [rows] = await db.query(`
+        SELECT COLUMN_NAME
+        FROM INFORMATION_SCHEMA.COLUMNS
+        WHERE TABLE_SCHEMA = DATABASE()
+          AND TABLE_NAME = 'announcement'
+          AND COLUMN_NAME = 'category_id'
+    `);
+
+    return rows.length > 0;
+};
+
 // Controller for creating announcement
 export const createAnnouncement = async (req, res) => {
     try {
@@ -16,9 +45,11 @@ export const createAnnouncement = async (req, res) => {
             return res.status(401).json({ message: "Unauthorized: no user info found" });
         }
 
-        const { title, description, category, author } = req.body;
+        const { title, description, category_id, category, author } = req.body;
 
-        if (!title || !description || !category) {
+        const selectedCategoryId = category_id || category;
+
+        if (!title || !description || !selectedCategoryId) {
             return res.status(400).json({ message: "Title, description, category, and author are required" });
         }
 
@@ -31,19 +62,22 @@ export const createAnnouncement = async (req, res) => {
         }
 
         // Determine approval status based on role
+        await ensureAnnouncementCategoryIdColumn();
+
         const approval_status = role_id === 3 ? 'Approved' : 'Pending';
         const status = 'Active';
 
         const sql = `
             INSERT INTO announcement
-            (user_id, title, category, author, description, file_name, file_path, approval_status, status)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (user_id, title, category_id, category, author, description, file_name, file_path, approval_status, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `;
 
         const [result] = await db.query(sql, [
             user_id,
             title,
-            category,
+            selectedCategoryId,
+            category || selectedCategoryId,
             author,
             description,
             file_name,
@@ -80,12 +114,21 @@ export const createAnnouncement = async (req, res) => {
 // Fetch only approved announcements
 export const getApprovedAnnouncements = async (req, res) => {
     try {
-        const sql = `
-            SELECT announcement_id, title, category, author, description, status, approval_status, created_at 
-            FROM announcement 
-            WHERE approval_status = 'Approved'
-              AND (status IS NULL OR LOWER(status) != 'archived')
-            ORDER BY created_at DESC
+        const hasCategoryId = await hasAnnouncementCategoryIdColumn();
+        let sql = `
+            SELECT a.announcement_id, a.title, a.category, a.category_id, a.author, a.description, a.status, a.approval_status, a.created_at,
+                   CASE WHEN ac.category_name IS NOT NULL THEN ac.category_name ELSE a.category END AS category_name
+            FROM announcement a
+        `;
+
+        if (hasCategoryId) {
+            sql += ` LEFT JOIN announcement_category ac ON ac.id = a.category_id `;
+        }
+
+        sql += `
+            WHERE a.approval_status = 'Approved'
+              AND (a.status IS NULL OR LOWER(a.status) != 'archived')
+            ORDER BY a.created_at DESC
         `;
 
         const [rows] = await db.query(sql);
@@ -124,15 +167,22 @@ export const getApprovedOrPendingAnnouncements = async (req, res) => {
             return res.status(401).json({ message: "Unauthorized: no user info found" });
         }
 
+        const hasCategoryId = await hasAnnouncementCategoryIdColumn();
+
         let sql = `
-            SELECT announcement_id, title, category, author, status, description, file_name, file_path, approval_status, created_at
-            FROM announcement
+            SELECT a.announcement_id, a.title, a.category, a.category_id, a.author, a.status, a.description, a.file_name, a.file_path, a.approval_status, a.created_at,
+                   CASE WHEN ac.category_name IS NOT NULL THEN ac.category_name ELSE a.category END AS category_name
+            FROM announcement a
         `;
+
+        if (hasCategoryId) {
+            sql += ` LEFT JOIN announcement_category ac ON ac.id = a.category_id `;
+        }
         let params = [];
 
         if (role_id !== 3) {
             // Normal user → only their own announcements
-            sql += ` WHERE user_id = ?`;
+            sql += ` WHERE a.user_id = ?`;
             params.push(user_id);
         } else {
             // Admin → sees all announcements
@@ -140,7 +190,7 @@ export const getApprovedOrPendingAnnouncements = async (req, res) => {
         }
 
         // Only include active, non-archived announcements for management views
-        sql += ` AND approval_status IN ('Approved', 'Rejected')`;
+        sql += ` AND a.approval_status IN ('Approved', 'Rejected')`;
         sql += ` AND (status IS NULL OR LOWER(status) != 'archived')`;
 
         // Order by newest first
@@ -159,11 +209,19 @@ export const getAnnouncementById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const sql = `
-      SELECT announcement_id, title, category, author, description, file_name, file_path, approval_status, status, created_at
-      FROM announcement
-      WHERE announcement_id = ?
+    const hasCategoryId = await hasAnnouncementCategoryIdColumn();
+
+    let sql = `
+      SELECT a.announcement_id, a.title, a.category, a.category_id, a.author, a.description, a.file_name, a.file_path, a.approval_status, a.status, a.created_at,
+             CASE WHEN ac.category_name IS NOT NULL THEN ac.category_name ELSE a.category END AS category_name
+      FROM announcement a
     `;
+
+    if (hasCategoryId) {
+      sql += ` LEFT JOIN announcement_category ac ON ac.id = a.category_id `;
+    }
+
+    sql += ` WHERE a.announcement_id = ?`;
 
     const [rows] = await db.query(sql, [id]);
 
