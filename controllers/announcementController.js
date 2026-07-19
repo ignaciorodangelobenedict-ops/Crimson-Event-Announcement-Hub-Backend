@@ -83,7 +83,8 @@ export const getApprovedAnnouncements = async (req, res) => {
         const sql = `
             SELECT announcement_id, title, category, author, description, status, approval_status, created_at 
             FROM announcement 
-            WHERE approval_status = ('Approved')
+            WHERE approval_status = 'Approved'
+              AND (status IS NULL OR LOWER(status) != 'archived')
             ORDER BY created_at DESC
         `;
 
@@ -123,8 +124,9 @@ export const getApprovedOrPendingAnnouncements = async (req, res) => {
             sql += ` WHERE 1=1`; // effectively no filter
         }
 
-        // Optional: only include approved or rejected announcements
+        // Only include active, non-archived announcements for management views
         sql += ` AND approval_status IN ('Approved', 'Rejected')`;
+        sql += ` AND (status IS NULL OR LOWER(status) != 'archived')`;
 
         // Order by newest first
         sql += ` ORDER BY created_at DESC`;
