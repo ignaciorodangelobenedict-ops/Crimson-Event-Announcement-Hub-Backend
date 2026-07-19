@@ -4,10 +4,13 @@ import db from "../database/database.js";
 export const getAllCategories = async (req, res) => {
   try {
     const [categories] = await db.query(
-      `SELECT c.category_id, c.category_name, c.description, c.created_at, 
+      `SELECT c.category_id, c.category_name, c.description, c.created_at,
               COUNT(e.event_id) as event_count
        FROM category c
-       LEFT JOIN event e ON c.category_id = e.category_id AND e.approval_status = 'approved'
+       LEFT JOIN event e ON c.category_id = e.category_id
+         AND e.approval_status = 'approved'
+         AND (e.status IS NULL OR LOWER(e.status) = 'active')
+         AND LOWER(COALESCE(e.status, 'active')) != 'archived'
        GROUP BY c.category_id
        ORDER BY c.category_id`
     );
