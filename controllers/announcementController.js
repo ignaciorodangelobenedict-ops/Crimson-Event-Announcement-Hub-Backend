@@ -32,6 +32,104 @@ const hasAnnouncementCategoryIdColumn = async () => {
     return rows.length > 0;
 };
 
+export const createAnnouncementCategory = async (req, res) => {
+    try {
+        if (req.user?.role_id !== 3) {
+            return res.status(403).json({ message: "Only admins can manage announcement categories" });
+        }
+
+        const { category_name, description } = req.body;
+        if (!category_name || !String(category_name).trim()) {
+            return res.status(400).json({ message: "Category name is required" });
+        }
+
+        const [existing] = await db.query(
+            `SELECT id FROM announcement_category WHERE LOWER(category_name) = LOWER(?)`,
+            [String(category_name).trim()]
+        );
+
+        if (existing.length > 0) {
+            return res.status(400).json({ message: "Announcement category already exists" });
+        }
+
+        const [result] = await db.query(
+            `INSERT INTO announcement_category (category_name, description) VALUES (?, ?)`,
+            [String(category_name).trim(), description || null]
+        );
+
+        res.status(201).json({
+            success: true,
+            message: "Announcement category created successfully",
+            category_id: result.insertId,
+            category_name: String(category_name).trim(),
+            description: description || "",
+        });
+    } catch (err) {
+        console.error("Error creating announcement category:", err);
+        res.status(500).json({ message: "Failed to create announcement category" });
+    }
+};
+
+export const updateAnnouncementCategory = async (req, res) => {
+    try {
+        if (req.user?.role_id !== 3) {
+            return res.status(403).json({ message: "Only admins can manage announcement categories" });
+        }
+
+        const { id } = req.params;
+        const { category_name, description } = req.body;
+        if (!category_name || !String(category_name).trim()) {
+            return res.status(400).json({ message: "Category name is required" });
+        }
+
+        const [existing] = await db.query(`SELECT id FROM announcement_category WHERE id = ?`, [id]);
+        if (existing.length === 0) {
+            return res.status(404).json({ message: "Announcement category not found" });
+        }
+
+        const [duplicate] = await db.query(
+            `SELECT id FROM announcement_category WHERE LOWER(category_name) = LOWER(?) AND id != ?`,
+            [String(category_name).trim(), id]
+        );
+
+        if (duplicate.length > 0) {
+            return res.status(400).json({ message: "Another announcement category with the same name already exists" });
+        }
+
+        await db.query(
+            `UPDATE announcement_category SET category_name = ?, description = ? WHERE id = ?`,
+            [String(category_name).trim(), description || null, id]
+        );
+
+        res.status(200).json({ success: true, message: "Announcement category updated successfully" });
+    } catch (err) {
+        console.error("Error updating announcement category:", err);
+        res.status(500).json({ message: "Failed to update announcement category" });
+    }
+};
+
+export const deleteAnnouncementCategory = async (req, res) => {
+    try {
+        if (req.user?.role_id !== 3) {
+            return res.status(403).json({ message: "Only admins can manage announcement categories" });
+        }
+
+        const { id } = req.params;
+        const [existing] = await db.query(`SELECT id FROM announcement_category WHERE id = ?`, [id]);
+        if (existing.length === 0) {
+            return res.status(404).json({ message: "Announcement category not found" });
+        }
+
+        await db.query(`UPDATE announcement SET category_id = NULL WHERE category_id = ?`, [id]);
+        await db.query(`DELETE FROM announcement_category WHERE id = ?`, [id]);
+
+        res.status(200).json({ success: true, message: "Announcement category deleted successfully" });
+    } catch (err) {
+        console.error("Error deleting announcement category:", err);
+        res.status(500).json({ message: "Failed to delete announcement category" });
+    }
+};
+
 // Controller for creating announcement
 export const createAnnouncement = async (req, res) => {
     try {
@@ -143,9 +241,16 @@ export const getApprovedAnnouncements = async (req, res) => {
 export const getAnnouncementCategories = async (req, res) => {
     try {
         const [rows] = await db.query(
-            `SELECT id, category_name, description, created_at
-             FROM announcement_category
-             ORDER BY category_name ASC`
+            `SELECT ac.id AS category_id,
+                    ac.id,
+                    ac.category_name,
+                    ac.description,
+                    ac.created_at,
+                    COUNT(a.announcement_id) AS announcement_count
+             FROM announcement_category ac
+             LEFT JOIN announcement a ON a.category_id = ac.id
+             GROUP BY ac.id, ac.category_name, ac.description, ac.created_at
+             ORDER BY ac.category_name ASC`
         );
 
         return res.status(200).json(rows);

@@ -1,12 +1,15 @@
 import express from "express";
 import announcementUpload from "../middleware/announcementUpload.js";
-import { 
-  createAnnouncement, 
+import {
+  createAnnouncement,
   getApprovedAnnouncements,
-  getApprovedOrPendingAnnouncements, 
+  getApprovedOrPendingAnnouncements,
   getAnnouncementById,
   approveAnnouncement,
-  getAnnouncementCategories
+  getAnnouncementCategories,
+  createAnnouncementCategory,
+  updateAnnouncementCategory,
+  deleteAnnouncementCategory
 } from "../controllers/announcementController.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 
@@ -24,7 +27,10 @@ router.post(
 router.get("/approved", getApprovedAnnouncements);
 
 // Fetch announcement categories from announcement_category table
-router.get("/categories", getAnnouncementCategories);
+router.get("/categories", verifyToken, getAnnouncementCategories);
+router.post("/categories", verifyToken, createAnnouncementCategory);
+router.put("/categories/:id", verifyToken, updateAnnouncementCategory);
+router.delete("/categories/:id", verifyToken, deleteAnnouncementCategory);
 
 // Fetch approved OR pending announcements
 router.get("/", verifyToken, getApprovedOrPendingAnnouncements);
