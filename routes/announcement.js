@@ -5,7 +5,8 @@ import {
   getApprovedAnnouncements,
   getApprovedOrPendingAnnouncements, 
   getAnnouncementById,
-  approveAnnouncement // 👈 new controller
+  approveAnnouncement,
+  getAnnouncementCategories
 } from "../controllers/announcementController.js";
 import { verifyToken } from "../middleware/authMiddleware.js";
 
@@ -21,6 +22,9 @@ router.post(
 
 // Fetch approved announcements
 router.get("/approved", getApprovedAnnouncements);
+
+// Fetch announcement categories from announcement_category table
+router.get("/categories", getAnnouncementCategories);
 
 // Fetch approved OR pending announcements
 router.get("/", verifyToken, getApprovedOrPendingAnnouncements);

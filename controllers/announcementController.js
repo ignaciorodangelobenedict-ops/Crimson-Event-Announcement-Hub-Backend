@@ -97,6 +97,21 @@ export const getApprovedAnnouncements = async (req, res) => {
     }
 };
 
+export const getAnnouncementCategories = async (req, res) => {
+    try {
+        const [rows] = await db.query(
+            `SELECT id, category_name, description, created_at
+             FROM announcement_category
+             ORDER BY category_name ASC`
+        );
+
+        return res.status(200).json(rows);
+    } catch (err) {
+        console.error("ERROR FETCHING ANNOUNCEMENT CATEGORIES:", err);
+        return res.status(500).json({ message: "Server error", error: err.message });
+    }
+};
+
 // ---------------------------
 // NEW: Fetch Approved OR Pending
 // ---------------------------
