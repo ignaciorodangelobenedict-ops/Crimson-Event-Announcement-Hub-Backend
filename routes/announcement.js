@@ -27,7 +27,7 @@ router.post(
 router.get("/approved", getApprovedAnnouncements);
 
 // Fetch announcement categories from announcement_category table
-router.get("/categories", verifyToken, getAnnouncementCategories);
+router.get("/categories", getAnnouncementCategories);
 router.post("/categories", verifyToken, createAnnouncementCategory);
 router.put("/categories/:id", verifyToken, updateAnnouncementCategory);
 router.delete("/categories/:id", verifyToken, deleteAnnouncementCategory);
